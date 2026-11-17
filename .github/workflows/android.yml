@@ -71,14 +71,14 @@ jobs:
       - name: Install and launch on Android API 30 emulator
         id: emulator_test
         continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 600
           cores: 2
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
