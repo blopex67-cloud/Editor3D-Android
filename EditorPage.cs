@@ -34,6 +34,11 @@ public sealed class EditorPage : ContentPage
 
             switch (action)
             {
+                case "ready":
+#if ANDROID
+                    Android.Util.Log.Info("EDITOR3D", "EDITOR3D_READY " + payload);
+#endif
+                    break;
                 case "save":
                 {
                     using var document = JsonDocument.Parse(payload);
