@@ -17,14 +17,14 @@ jobs:
         with:
           distribution: microsoft
           java-version: 17
-      - name: Install Android workload
+      - name: Install MAUI Android workload
         run: dotnet workload install maui-android
-      - name: Build APK
-        run: dotnet publish Editor3D.csproj -f net9.0-android -c Release -p:AndroidPackageFormat=apk
+      - name: Build installable debug APK
+        run: dotnet publish Editor3D.csproj -f net9.0-android -c Debug -p:AndroidPackageFormat=apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Editor3D-Android-APK
-          path: '**/bin/Release/net9.0-android/publish/*.apk'
+          path: '**/bin/Debug/net9.0-android/publish/*.apk'
           if-no-files-found: error
           retention-days: 14
