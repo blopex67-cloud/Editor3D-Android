@@ -24,10 +24,32 @@ jobs:
         run: dotnet workload install maui-android
       - name: Build installable debug APK
         run: dotnet publish Editor3D.csproj -f net10.0-android -c Debug -p:AndroidPackageFormat=apk
+      - name: Launch app in Android emulator and verify 3D startup
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            APK=$(find bin/Debug/net10.0-android/publish -name '*.apk' -print -quit)
+            test -n "$APK"
+            adb install "$APK"
+            adb shell monkey -p com.blopex67.editor3d 1
+            for i in $(seq 1 30); do
+              if adb logcat -d -s EDITOR3D:I | grep -q 'EDITOR3D_READY three-renderer-ready'; then break; fi
+              sleep 2
+            done
+            adb logcat -d -s EDITOR3D:I | grep -q 'EDITOR3D_READY three-renderer-ready'
+            if adb logcat -d -s AndroidRuntime:E | grep -q 'FATAL EXCEPTION'; then exit 1; fi
+            adb shell screencap -p /sdcard/editor3d-emulator.png
+            adb pull /sdcard/editor3d-emulator.png editor3d-emulator.png
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Editor3D-Android-APK
-          path: '**/bin/Debug/net10.0-android/publish/*.apk'
+          path: |
+            **/bin/Debug/net10.0-android/publish/*.apk
+            editor3d-emulator.png
           if-no-files-found: error
           retention-days: 14
