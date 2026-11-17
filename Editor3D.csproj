@@ -13,6 +13,9 @@
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
+  </ItemGroup>
+  <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" />
     <MauiAsset Include="Resources\Raw\wwwroot\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
