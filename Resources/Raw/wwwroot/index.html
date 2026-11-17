@@ -1,1 +1,51 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#111318"><title>Editor 3D</title><link rel="stylesheet" href="style.css"></head><body><header><div class="brand"><span class="logo">⬡</span><b>Editor 3D</b></div><div class="top-actions"><button id="undo" title="Deshacer">↶</button><button id="save">Guardar</button><button id="export">Exportar</button></div></header><main><aside class="tools"><button class="tool active" data-tool="select">⌖<small>Seleccionar</small></button><button class="tool" data-tool="move">✣<small>Mover</small></button><button class="tool" data-tool="rotate">⟳<small>Rotar</small></button><button class="tool" data-tool="scale">⤢<small>Escalar</small></button><button class="tool danger" id="delete">♲<small>Borrar</small></button></aside><section class="viewport"><div class="viewport-head"><span>VISTA 3D</span><span id="hint">Arrastra para orbitar · pellizca para zoom</span></div><div id="scene"></div><div class="addbar"><button id="addCube">＋ Cubo</button><button id="addSphere">＋ Esfera</button><button id="import">⇧ Importar</button></div><div id="toast"></div></section><aside class="panel"><div class="panel-title">ESCENA <button id="clear">＋</button></div><div id="objects"></div><div class="inspector"><div class="panel-title">PROPIEDADES</div><div id="props" class="props">Selecciona un objeto</div></div></aside></main><footer><span>Editor 3D móvil</span><span id="status">Listo</span></footer><script src="_framework/hybridwebview.js"></script><script type="module" src="app.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#17191d">
+  <title>Editor 3D</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">⬡</span><b>Editor 3D</b></div>
+    <div class="mode-label">Object Mode <span>⌄</span></div>
+    <div class="top-actions">
+      <button id="undo" title="Deshacer">↶</button>
+      <button id="save" title="Guardar escena">▣</button>
+      <button id="import" title="Importar escena">⇧</button>
+      <button id="export" title="Exportar escena">▧</button>
+    </div>
+  </header>
+  <main>
+    <aside class="tools" aria-label="Herramientas">
+      <button class="tool active" data-tool="select" title="Seleccionar">✥<small>Seleccionar</small></button>
+      <button class="tool" data-tool="move" title="Mover">✣<small>Mover</small></button>
+      <button class="tool" data-tool="rotate" title="Rotar">⟳<small>Rotar</small></button>
+      <button class="tool" data-tool="scale" title="Escalar">⤢<small>Escalar</small></button>
+      <i class="tool-separator"></i>
+      <button class="tool" id="addCube" title="Añadir cubo">⬡<small>Cubo</small></button>
+      <button class="tool" id="addSphere" title="Añadir esfera">◉<small>Esfera</small></button>
+      <button class="tool danger" id="delete" title="Borrar objeto">▤<small>Borrar</small></button>
+    </aside>
+    <section class="viewport">
+      <div class="viewport-head"><span>Object Mode</span><span id="hint">Arrastra para orbitar · pellizca para zoom</span></div>
+      <div id="scene"></div>
+      <div class="viewport-tools"><button id="clear" title="Añadir objeto">＋</button><button title="Vista de cámara">◉</button><button title="Vista del visor">◈</button><button title="Opciones de vista">☰</button></div>
+      <div class="addbar"><button id="import-model">⇧ Importar modelo</button></div>
+      <div id="toast"></div>
+    </section>
+    <aside class="panel">
+      <div class="panel-title"><span>OUTLINER</span><button id="clear-panel" title="Añadir objeto">＋</button></div>
+      <div class="scene-header"><span>▾</span> Scene Collection</div>
+      <div id="objects"></div>
+      <div class="inspector"><div class="panel-title">PROPIEDADES</div><div id="props" class="props">Selecciona un objeto</div></div>
+    </aside>
+  </main>
+  <footer><span>Editor 3D móvil</span><span id="status">Listo</span></footer>
+  <script src="_framework/hybridwebview.js"></script>
+  <script type="module" src="app.js"></script>
+  <script>document.getElementById('import-model').onclick=()=>document.getElementById('import').click();document.getElementById('clear-panel').onclick=()=>document.getElementById('clear').click();</script>
+</body>
+</html>
