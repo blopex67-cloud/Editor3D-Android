@@ -1,4 +1,4 @@
-name: Build and validate Editor3D Android APK
+name: Build and test Editor3D Android APK
 
 on:
   workflow_dispatch:
@@ -16,12 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-apk:
-    name: Build and inspect APK
+  build-and-test:
+    name: Build APK and test startup
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - name: Check out the requested revision
+      - name: Check out requested revision
         uses: actions/checkout@v4
 
       - name: Set up .NET 10
@@ -38,49 +38,29 @@ jobs:
       - name: Install MAUI Android workload
         run: dotnet workload install maui-android
 
-      - name: Build APK and capture build log
+      - name: Build signed debug APK
         shell: bash
         env:
           BUILD_NOTE: ${{ inputs.note }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          echo "Commit: $GITHUB_SHA" | tee artifacts/validation.txt
-          echo "Build note: $BUILD_NOTE" | tee -a artifacts/validation.txt
-          dotnet publish Editor3D.csproj \
-            --framework net10.0-android \
-            --configuration Debug \
-            -p:AndroidPackageFormat=apk \
-            2>&1 | tee artifacts/build.log
-
-      - name: Verify APK integrity and Android package identity
-        shell: bash
-        run: |
-          set -euo pipefail
+          printf 'Commit: %s\nBuild note: %s\n' "$GITHUB_SHA" "$BUILD_NOTE" | tee artifacts/validation.txt
+          dotnet publish Editor3D.csproj --framework net10.0-android --configuration Debug -p:AndroidPackageFormat=apk 2>&1 | tee artifacts/build.log
           APK="$(find bin/Debug/net10.0-android/publish -type f -name '*-Signed.apk' -print -quit)"
-          if [[ -z "$APK" ]]; then
-            echo 'ERROR: Signed APK not found.' | tee -a artifacts/validation.txt
-            exit 1
-          fi
-          echo "APK path: $APK" | tee -a artifacts/validation.txt
-          echo "APK SHA-256: $(sha256sum "$APK" | awk '{print $1}')" | tee -a artifacts/validation.txt
-          unzip -t "$APK" | tail -n 2 | tee -a artifacts/validation.txt
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt 2>/dev/null | sort -V | tail -n 1)"
-          if [[ -z "$AAPT" ]]; then
-            echo 'ERROR: Android aapt tool not found.' | tee -a artifacts/validation.txt
-            exit 1
-          fi
-          "$AAPT" dump badging "$APK" > artifacts/apk-badging.txt
-          grep "package: name='com.blopex67.editor3d'" artifacts/apk-badging.txt
-          grep "package: name='com.blopex67.editor3d'" artifacts/apk-badging.txt >> artifacts/validation.txt
+          test -n "$APK"
           cp "$APK" artifacts/Editor3D-Android.apk
-          echo 'APK archive and package identity checks passed.' | tee -a artifacts/validation.txt
+          echo "APK SHA-256: $(sha256sum artifacts/Editor3D-Android.apk | awk '{print $1}')" | tee -a artifacts/validation.txt
+          unzip -t artifacts/Editor3D-Android.apk | tail -n 2 | tee -a artifacts/validation.txt
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt 2>/dev/null | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          "$AAPT" dump badging artifacts/Editor3D-Android.apk > artifacts/apk-badging.txt
+          grep "package: name='com.blopex67.editor3d'" artifacts/apk-badging.txt | tee -a artifacts/validation.txt
 
-      - name: Upload APK and build report
-        if: success()
+      - name: Upload APK candidate
         uses: actions/upload-artifact@v4
         with:
-          name: Editor3D-Android-APK
+          name: Editor3D-Android-APK-candidate
           path: |
             artifacts/Editor3D-Android.apk
             artifacts/validation.txt
@@ -88,11 +68,73 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Install and launch on Android API 30 emulator
+        id: emulator_test
+        continue-on-error: true
+        timeout-minutes: 8
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-boot-timeout: 300
+          cores: 2
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set +e
+            mkdir -p artifacts
+            adb logcat -c
+            adb install -r artifacts/Editor3D-Android.apk > artifacts/install.txt 2>&1
+            INSTALL_RC=$?
+            cat artifacts/install.txt
+            if [ "$INSTALL_RC" -ne 0 ]; then exit "$INSTALL_RC"; fi
+            adb shell am force-stop com.blopex67.editor3d
+            adb shell monkey -p com.blopex67.editor3d 1 > artifacts/launch.txt 2>&1
+            sleep 15
+            adb shell pidof com.blopex67.editor3d > artifacts/app-pid.txt 2>&1
+            PID_RC=$?
+            adb logcat -d -v time > artifacts/logcat.txt 2>&1
+            adb shell screencap -p /sdcard/editor3d.png
+            adb pull /sdcard/editor3d.png artifacts/emulator.png
+            if [ "$PID_RC" -ne 0 ] || [ ! -s artifacts/app-pid.txt ]; then
+              echo 'FAIL: app process is not running after launch.' | tee artifacts/startup-result.txt
+              grep -E -A30 'FATAL EXCEPTION|EDITOR3D_STARTUP|Process: com.blopex67.editor3d|Fatal signal' artifacts/logcat.txt | tail -n 120 >> artifacts/startup-result.txt
+              exit 1
+            fi
+            if ! grep -q 'EDITOR3D_READY three-renderer-ready' artifacts/logcat.txt; then
+              echo 'FAIL: process remained alive but web editor did not signal renderer ready.' | tee artifacts/startup-result.txt
+              exit 1
+            fi
+            echo 'PASS: app process stayed alive and Three.js renderer signaled ready.' | tee artifacts/startup-result.txt
+
+      - name: Upload emulator logs and screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Editor3D-Android-startup-diagnostics
+          path: |
+            artifacts/install.txt
+            artifacts/launch.txt
+            artifacts/app-pid.txt
+            artifacts/logcat.txt
+            artifacts/startup-result.txt
+            artifacts/emulator.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail workflow if startup verification failed
+        if: steps.emulator_test.outcome != 'success'
+        run: |
+          echo 'Android startup verification failed. See Editor3D-Android-startup-diagnostics.'
+          exit 1
+
       - name: Preserve build diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: Editor3D-Android-build-diagnostics
           path: artifacts/
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 7
