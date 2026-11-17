@@ -14,6 +14,8 @@ public static class MauiProgram
             handler.PlatformView.Settings.JavaScriptEnabled = true;
             handler.PlatformView.Settings.DomStorageEnabled = true;
             handler.PlatformView.Settings.AllowFileAccess = true;
+            handler.PlatformView.Settings.AllowFileAccessFromFileURLs = true;
+            handler.PlatformView.Settings.AllowUniversalAccessFromFileURLs = true;
             handler.PlatformView.Settings.AllowContentAccess = true;
         });
 #endif
