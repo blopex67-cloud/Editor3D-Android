@@ -1,51 +1,71 @@
+using Microsoft.Maui.Controls;
+using System.Text;
 using System.Text.Json;
 
 namespace Editor3D;
 
 public sealed class EditorPage : ContentPage
 {
-    private readonly WebView _webView;
+    private readonly HybridWebView _webView;
 
     public EditorPage()
     {
         Title = "Editor 3D";
         BackgroundColor = Color.FromArgb("#111318");
-        _webView = new WebView
+        _webView = new HybridWebView
         {
-            Source = new UrlWebViewSource { Url = "file:///android_asset/wwwroot/index.html" },
-            BackgroundColor = Color.FromArgb("#111318")
+            HybridRoot = "wwwroot",
+            DefaultFile = "index.html",
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill
         };
-        _webView.Navigating += OnNavigating;
+        _webView.RawMessageReceived += OnRawMessageReceived;
         Content = _webView;
     }
 
-    private async void OnNavigating(object? sender, WebNavigatingEventArgs e)
+    private async void OnRawMessageReceived(object? sender, HybridWebViewRawMessageReceivedEventArgs e)
     {
-        if (!Uri.TryCreate(e.Url, UriKind.Absolute, out var uri) || uri.Scheme != "zapia") return;
-        e.Cancel = true;
         try
         {
-            if (uri.Host == "save")
+            var separator = e.Message.IndexOf('|');
+            if (separator < 0) return;
+            var action = e.Message[..separator];
+            var payload = e.Message[(separator + 1)..];
+
+            switch (action)
             {
-                var json = Uri.UnescapeDataString(uri.Query.TrimStart('?'));
-                var file = Path.Combine(FileSystem.AppDataDirectory, "escena-editor3d.json");
-                await File.WriteAllTextAsync(file, json);
-                await DisplayAlert("Escena guardada", $"Guardada en el almacenamiento de la app.\n{file}", "OK");
-            }
-            else if (uri.Host == "import")
-            {
-                var picked = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Importar escena JSON" });
-                if (picked is null) return;
-                var json = await File.ReadAllTextAsync(picked.FullPath);
-                var arg = JsonSerializer.Serialize(json);
-                await _webView.EvaluateJavaScriptAsync($"window.loadSceneFromNative({arg})");
-            }
-            else if (uri.Host == "export")
-            {
-                var json = Uri.UnescapeDataString(uri.Query.TrimStart('?'));
-                var file = Path.Combine(FileSystem.CacheDirectory, "escena-editor3d.json");
-                await File.WriteAllTextAsync(file, json);
-                await Share.Default.RequestAsync(new ShareFileRequest("Compartir escena 3D", new ShareFile(file)));
+                case "save":
+                {
+                    using var document = JsonDocument.Parse(payload);
+                    var file = Path.Combine(FileSystem.AppDataDirectory, "escena-editor3d.json");
+                    await File.WriteAllTextAsync(file, payload, Encoding.UTF8);
+                    await DisplayAlert("Escena guardada", "Quedó guardada en este dispositivo.", "OK");
+                    break;
+                }
+                case "import":
+                {
+                    var picked = await FilePicker.Default.PickAsync(new PickOptions
+                    {
+                        PickerTitle = "Elige una escena JSON"
+                    });
+                    if (picked is null) return;
+                    await using var stream = await picked.OpenReadAsync();
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    var json = await reader.ReadToEndAsync();
+                    using var parsed = JsonDocument.Parse(json);
+                    if (!parsed.RootElement.TryGetProperty("objects", out var objects) || objects.ValueKind != JsonValueKind.Array)
+                        throw new InvalidDataException("El archivo no contiene una escena reconocible.");
+                    _webView.SendRawMessage("load|" + json);
+                    break;
+                }
+                case "export":
+                {
+                    using var document = JsonDocument.Parse(payload);
+                    var file = Path.Combine(FileSystem.CacheDirectory, "escena-editor3d.json");
+                    await File.WriteAllTextAsync(file, payload, Encoding.UTF8);
+                    await Share.Default.RequestAsync(new ShareFileRequest("Compartir escena 3D", new ShareFile(file)));
+                    break;
+                }
             }
         }
         catch (Exception ex)
